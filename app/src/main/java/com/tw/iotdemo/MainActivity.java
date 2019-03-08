@@ -1,6 +1,12 @@
 package com.tw.iotdemo;
 
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Intent;
+import android.os.Build;
+import android.support.v4.app.NotificationCompat;
+import android.support.v4.app.NotificationManagerCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -21,6 +27,8 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.Task;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.util.List;
 
 import es.dmoral.toasty.Toasty;
@@ -33,6 +41,9 @@ public class MainActivity extends AppCompatActivity {
     private GoogleSignInClient mGoogleSignInClient;
     private Integer RC_SIGN_IN = 1;
     private GoogleSignInAccount loggedInAccount;
+    private String CHANNEL_ID = "default";
+    private static final int NOTIFICATION_ID = 1;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,41 +56,9 @@ public class MainActivity extends AppCompatActivity {
         EstimoteCloudCredentials cloudCredentials =
                 new EstimoteCloudCredentials("iotdemo-ldm", "283794a072f659625c22af3392b771af");
 
-        this.proximityObserver =
-                new ProximityObserverBuilder(getApplicationContext(), cloudCredentials)
-                        .onError(new Function1<Throwable, Unit>() {
-                            @Override
-                            public Unit invoke(Throwable throwable) {
-                                Log.e("app", "proximity observer error: " + throwable);
-                                return null;
-                            }
-                        })
-                        .withBalancedPowerMode()
-                        .build();
+        this.proximityObserver = createProximityObserver(cloudCredentials);
 
-        final ProximityZone zone = new ProximityZoneBuilder()
-                .forTag("IOT-Community")
-                .inNearRange()
-                .onEnter(new Function1<ProximityZoneContext, Unit>() {
-                    @Override
-                    public Unit invoke(ProximityZoneContext context) {
-                        String deskOwner = context.getAttachments().get("owner");
-                        String msg = "Welcome "+ loggedInAccount.getGivenName() + " to " + deskOwner + "'s desk";
-                        Log.d("app", msg);
-                        Toasty.info(getApplicationContext(), msg, Toast.LENGTH_LONG, true).show();
-                        return null;
-                    }
-                })
-                .onExit(new Function1<ProximityZoneContext, Unit>() {
-                    @Override
-                    public Unit invoke(ProximityZoneContext context) {
-                        String msg = "Bye bye " + loggedInAccount.getGivenName() + ", come again!";
-                        Log.d("app", msg);
-                        Toasty.info(getApplicationContext(), msg, Toast.LENGTH_LONG, true).show();
-                        return null;
-                    }
-                })
-                .build();
+        final ProximityZone zone = createProximityZone();
 
         RequirementsWizardFactory
                 .createEstimoteRequirementsWizard()
@@ -106,6 +85,87 @@ public class MainActivity extends AppCompatActivity {
                                 return null;
                             }
                         });
+
+        createNotificationChannel();
+        createNotification();
+    }
+
+    private void createNotification() {
+
+        // Create an explicit intent for an Activity in your app
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, 0);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle("IOTDemo")
+                .setContentText("Do want to do this?")
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+//                .setContentIntent(pendingIntent)
+                .setAutoCancel(true);
+
+        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
+        // notificationId is a unique int for each notification that you must define
+        notificationManager.notify(NOTIFICATION_ID, builder.build());
+    }
+
+    private void createNotificationChannel() {
+        // Create the NotificationChannel, but only on API 26+ because
+        // the NotificationChannel class is new and not in the support library
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            CharSequence name = getString(R.string.channel_name);
+            String description = getString(R.string.channel_description);
+            int importance = NotificationManager.IMPORTANCE_DEFAULT;
+            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, name, importance);
+            channel.setDescription(description);
+            // Register the channel with the system; you can't change the importance
+            // or other notification behaviors after this
+            NotificationManager notificationManager = getSystemService(NotificationManager.class);
+            notificationManager.createNotificationChannel(channel);
+        }
+    }
+
+
+    @NotNull
+    private ProximityZone createProximityZone() {
+        return new ProximityZoneBuilder()
+                .forTag("IOT-Community")
+                .inNearRange()
+                .onEnter(new Function1<ProximityZoneContext, Unit>() {
+                    @Override
+                    public Unit invoke(ProximityZoneContext context) {
+                        String deskOwner = context.getAttachments().get("owner");
+                        String msg = "Welcome "+ loggedInAccount.getGivenName() + " to " + deskOwner + "'s desk";
+                        Log.d("app", msg);
+                        Toasty.info(getApplicationContext(), msg, Toast.LENGTH_LONG, true).show();
+                        return null;
+                    }
+                })
+                .onExit(new Function1<ProximityZoneContext, Unit>() {
+                    @Override
+                    public Unit invoke(ProximityZoneContext context) {
+                        String msg = "Bye bye " + loggedInAccount.getGivenName() + ", come again!";
+                        Log.d("app", msg);
+                        Toasty.info(getApplicationContext(), msg, Toast.LENGTH_LONG, true).show();
+                        return null;
+                    }
+                })
+                .build();
+    }
+
+    @NotNull
+    private ProximityObserver createProximityObserver(EstimoteCloudCredentials cloudCredentials) {
+        return new ProximityObserverBuilder(getApplicationContext(), cloudCredentials)
+                .onError(new Function1<Throwable, Unit>() {
+                    @Override
+                    public Unit invoke(Throwable throwable) {
+                        Log.e("app", "proximity observer error: " + throwable);
+                        return null;
+                    }
+                })
+                .withBalancedPowerMode()
+                .build();
     }
 
     private void createSignInActivity() {
