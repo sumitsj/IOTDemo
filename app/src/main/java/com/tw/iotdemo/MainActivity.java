@@ -10,6 +10,11 @@ import android.support.v4.app.NotificationManagerCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.estimote.mustard.rx_goodness.rx_requirements_wizard.Requirement;
@@ -29,6 +34,7 @@ import com.google.android.gms.tasks.Task;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import es.dmoral.toasty.Toasty;
@@ -43,6 +49,7 @@ public class MainActivity extends AppCompatActivity {
     private GoogleSignInAccount loggedInAccount;
     private String CHANNEL_ID = "default";
     private static final int NOTIFICATION_ID = 1;
+    private List<String> availableRooms = new ArrayList<String>();
 
 
     @Override
@@ -65,7 +72,8 @@ public class MainActivity extends AppCompatActivity {
                 .fulfillRequirements(this,
                         // onRequirementsFulfilled
                         new Function0<Unit>() {
-                            @Override public Unit invoke() {
+                            @Override
+                            public Unit invoke() {
                                 Log.d("app", "requirements fulfilled");
                                 proximityObserver.startObserving(zone);
                                 return null;
@@ -73,21 +81,23 @@ public class MainActivity extends AppCompatActivity {
                         },
                         // onRequirementsMissing
                         new Function1<List<? extends Requirement>, Unit>() {
-                            @Override public Unit invoke(List<? extends Requirement> requirements) {
+                            @Override
+                            public Unit invoke(List<? extends Requirement> requirements) {
                                 Log.e("app", "requirements missing: " + requirements);
                                 return null;
                             }
                         },
                         // onError
                         new Function1<Throwable, Unit>() {
-                            @Override public Unit invoke(Throwable throwable) {
+                            @Override
+                            public Unit invoke(Throwable throwable) {
                                 Log.e("app", "requirements error: " + throwable);
                                 return null;
                             }
                         });
 
-        createNotificationChannel();
-        createNotification();
+        //createNotificationChannel();
+        //createNotification();
     }
 
     private void createNotification() {
@@ -135,19 +145,24 @@ public class MainActivity extends AppCompatActivity {
                 .onEnter(new Function1<ProximityZoneContext, Unit>() {
                     @Override
                     public Unit invoke(ProximityZoneContext context) {
-                        String deskOwner = context.getAttachments().get("owner");
-                        String msg = "Welcome "+ loggedInAccount.getGivenName() + " to " + deskOwner + "'s desk";
+                        String roomName = context.getAttachments().get("room_name");
+                        String msg = "Welcome " + loggedInAccount.getGivenName() + " to " + roomName + "'s desk";
                         Log.d("app", msg);
-                        Toasty.info(getApplicationContext(), msg, Toast.LENGTH_LONG, true).show();
+                        addRomm(roomName);
+                        updateUI();
+//                        Toasty.info(getApplicationContext(), msg, Toast.LENGTH_LONG, true).show();
                         return null;
                     }
                 })
                 .onExit(new Function1<ProximityZoneContext, Unit>() {
                     @Override
                     public Unit invoke(ProximityZoneContext context) {
+                        String roomName = context.getAttachments().get("room_name");
                         String msg = "Bye bye " + loggedInAccount.getGivenName() + ", come again!";
                         Log.d("app", msg);
-                        Toasty.info(getApplicationContext(), msg, Toast.LENGTH_LONG, true).show();
+                        removeRoom(roomName);
+                        updateUI();
+//                        Toasty.info(getApplicationContext(), msg, Toast.LENGTH_LONG, true).show();
                         return null;
                     }
                 })
@@ -180,21 +195,68 @@ public class MainActivity extends AppCompatActivity {
         // Check for existing Google Sign In account, if the user is already signed in
         // the GoogleSignInAccount will be non-null.
         GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
-        updateUI();
         if (account == null)
             signIn();
         else {
             loggedInAccount = account;
-            updateUI();
         }
 
     }
 
+    private void addRomm(String room) {
+        if (!availableRooms.contains(room)) {
+            availableRooms.add(room);
+        }
+    }
+
+    private void removeRoom(String room) {
+        if (availableRooms.contains(room)) {
+            availableRooms.remove(room);
+        }
+    }
+
     private void updateUI() {
-        if (loggedInAccount == null)
-            return;
-        Log.d("app", loggedInAccount.getGivenName());
-        Toasty.success(getApplicationContext(), "Logged in as " + loggedInAccount.getGivenName(), Toast.LENGTH_LONG, true);
+        RadioGroup rooms = findViewById(R.id.rooms);
+        TextView txtNoRoomAvailable = findViewById(R.id.txtNoRoomAvailable);
+        TextView txtSelectRoom = findViewById(R.id.txtSelectRoom);
+        rooms.removeAllViews();
+        if (availableRooms.size() == 0) {
+            txtNoRoomAvailable.setVisibility(View.VISIBLE);
+            txtSelectRoom.setVisibility(View.INVISIBLE);
+        } else {
+            txtNoRoomAvailable.setVisibility(View.INVISIBLE);
+            txtSelectRoom.setVisibility(View.VISIBLE);
+
+            for (String roomName : availableRooms) {
+                RadioButton rdbtn = new RadioButton(this);
+                rdbtn.setId(View.generateViewId());
+                rdbtn.setText(roomName);
+                rooms.addView(rdbtn);
+            }
+        }
+
+
+        Button buttonBookRoom = findViewById(R.id.buttonBookRoom);
+        buttonBookRoom.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (availableRooms.size() > 0) {
+                    RadioGroup rooms = findViewById(R.id.rooms);
+                    int selectedRoomId = rooms.getCheckedRadioButtonId();
+                    if (selectedRoomId != -1) {
+                        RadioButton selectedRoom = rooms.findViewById(selectedRoomId);
+                        Toasty.success(getApplicationContext(), "Room " + selectedRoom.getText() + " booked successfully.", Toast.LENGTH_LONG, true).show();
+                    }
+                    else{
+                        Toasty.info(getApplicationContext(), "Please select room first.", Toast.LENGTH_LONG, true).show();
+                    }
+                }
+                else{
+                    Toasty.error(getApplicationContext(), "No room available near you.", Toast.LENGTH_LONG, true).show();
+                }
+            }
+        });
+
     }
 
     private void signIn() {
@@ -220,12 +282,10 @@ public class MainActivity extends AppCompatActivity {
             GoogleSignInAccount account = completedTask.getResult(ApiException.class);
             loggedInAccount = account;
             // Signed in successfully, show authenticated UI.
-            updateUI();
         } catch (ApiException e) {
             // The ApiException status code indicates the detailed failure reason.
             // Please refer to the GoogleSignInStatusCodes class reference for more information.
             Log.w("app", "signInResult:failed code=" + e.getStatusCode());
-            updateUI();
         }
     }
 
