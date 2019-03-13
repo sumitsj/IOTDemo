@@ -35,6 +35,7 @@ import com.google.android.gms.tasks.Task;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import es.dmoral.toasty.Toasty;
@@ -217,20 +218,44 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateUI() {
         RadioGroup rooms = findViewById(R.id.rooms);
+        rooms.removeAllViews();
+
         TextView txtNoRoomAvailable = findViewById(R.id.txtNoRoomAvailable);
         TextView txtSelectRoom = findViewById(R.id.txtSelectRoom);
-        rooms.removeAllViews();
+
+        TextView txtSelectDuration = findViewById(R.id.txtSelectDuration);
+        final RadioGroup durations = findViewById(R.id.durations);
+        durations.removeAllViews();
+
         if (availableRooms.size() == 0) {
             txtNoRoomAvailable.setVisibility(View.VISIBLE);
             txtSelectRoom.setVisibility(View.INVISIBLE);
+            txtSelectDuration.setVisibility(View.INVISIBLE);
         } else {
             txtNoRoomAvailable.setVisibility(View.INVISIBLE);
             txtSelectRoom.setVisibility(View.VISIBLE);
 
             for (String roomName : availableRooms) {
-                RadioButton rdbtn = new RadioButton(this);
+                final RadioButton rdbtn = new RadioButton(this);
                 rdbtn.setId(View.generateViewId());
                 rdbtn.setText(roomName);
+                rdbtn.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        RadioButton clickedButton = (RadioButton)v;
+                        TextView txtSelectDuration = findViewById(R.id.txtSelectDuration);
+                        txtSelectDuration.setVisibility(View.VISIBLE);
+
+                        RadioGroup durations = findViewById(R.id.durations);
+                        List<String> availableDurations = getAvailableDurationsFor(clickedButton.getText());
+                        for(String duration : availableDurations){
+                            RadioButton rdbtnDuration = new RadioButton(clickedButton.getContext());
+                            rdbtnDuration.setId(View.generateViewId());
+                            rdbtnDuration.setText(duration);
+                            durations.addView(rdbtnDuration);
+                        }
+                    }
+                });
                 rooms.addView(rdbtn);
             }
         }
@@ -245,10 +270,20 @@ public class MainActivity extends AppCompatActivity {
                     int selectedRoomId = rooms.getCheckedRadioButtonId();
                     if (selectedRoomId != -1) {
                         RadioButton selectedRoom = rooms.findViewById(selectedRoomId);
-                        Toasty.success(getApplicationContext(), "Room " + selectedRoom.getText() + " booked successfully.", Toast.LENGTH_LONG, true).show();
+
+                        final RadioGroup durations = findViewById(R.id.durations);
+                        int selectedDurationId = durations.getCheckedRadioButtonId();
+                        if (selectedDurationId != -1) {
+                            RadioButton selectedDuration = durations.findViewById(selectedDurationId);
+                            Toasty.success(getApplicationContext(), "Room " + selectedRoom.getText() + " booked for " + selectedDuration.getText(), Toast.LENGTH_LONG, true).show();
+                        }
+                        else {
+                            Toasty.info(getApplicationContext(), "Please select duration.", Toast.LENGTH_LONG, true).show();
+
+                        }
                     }
                     else{
-                        Toasty.info(getApplicationContext(), "Please select room first.", Toast.LENGTH_LONG, true).show();
+                        Toasty.info(getApplicationContext(), "Please select room.", Toast.LENGTH_LONG, true).show();
                     }
                 }
                 else{
@@ -257,6 +292,10 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+    }
+
+    private List<String> getAvailableDurationsFor(CharSequence text) {
+        return Arrays.asList("15 minutes", "30 minutes", "1 hour");
     }
 
     private void signIn() {
